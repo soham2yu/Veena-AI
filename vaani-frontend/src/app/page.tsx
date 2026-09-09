@@ -630,13 +630,19 @@ function HomeContent() {
                   return;
                 }
                 try {
-                  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+                  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
+                  console.log('[VAANI] Connecting to GitHub:', githubUrl, 'via', backendUrl);
                   const res = await fetch(`${backendUrl}/api/github/connect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repo_url: githubUrl, incident_id: activeIncidentId })
                   });
-                  if (!res.ok) throw new Error('Failed to connect repo');
+                  console.log('[VAANI] GitHub connect response:', res.status);
+                  if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    console.error('[VAANI] GitHub connect error body:', errText);
+                    throw new Error(`Failed to connect repo (${res.status})`);
+                  }
                   // Trigger VAANI to acknowledge the project
                   await fetch(`${backendUrl}/api/analyze`, {
                     method: 'POST',
@@ -652,7 +658,7 @@ function HomeContent() {
                   });
                 } catch (e) {
                   alert('Failed to connect GitHub repo. Make sure it\'s a valid public repository.');
-                  console.error(e);
+                  console.error('[VAANI] GitHub connect failed:', e);
                 }
               }} />
             </div>
