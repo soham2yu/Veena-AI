@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Load .env before importing anything that reads env vars
 load_dotenv()
 
-from app.api import analysis, incidents, transcript, websocket, integrations, tts
+from app.api import analysis, incidents, transcript, websocket, integrations, tts, github
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +50,7 @@ app.include_router(transcript.router, prefix="/api", tags=["Transcript"])
 app.include_router(websocket.router, prefix="/api", tags=["WebSocket"])
 app.include_router(integrations.router, prefix="/api", tags=["Integrations"])
 app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
+app.include_router(github.router, prefix="/api/github", tags=["GitHub"])
 
 
 @app.get("/health")

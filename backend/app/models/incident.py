@@ -50,6 +50,7 @@ class IncidentState(BaseModel):
     room_vibe: str = Field(default="Calm", description="The current atmospheric vibe of the room")
 
     ai_response: str | None = Field(default=None, description="Latest AI response to the users")
+    project_context: str | None = Field(default=None, description="GitHub project context for AI analysis")
 
     # Raw transcript — preserved for audit, never overwritten by AI
     transcript: list[TranscriptEntry] = Field(default_factory=list)

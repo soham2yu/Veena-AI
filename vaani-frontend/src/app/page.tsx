@@ -34,6 +34,7 @@ function HomeContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
   const [isTextVisible, setIsTextVisible] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
   // Auto-join logic if URL ID is present
   useEffect(() => {
@@ -95,6 +96,7 @@ function HomeContent() {
         text
       };
 
+      setIsThinking(true);
       try {
         await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/analyze`, {
           method: 'POST',
@@ -106,6 +108,8 @@ function HomeContent() {
         });
       } catch (e) {
         console.error("Failed to send transcript", e);
+      } finally {
+        setIsThinking(false);
       }
     }
   });
@@ -166,6 +170,7 @@ function HomeContent() {
   // Handle AI Response Text-To-Speech and Display
   useEffect(() => {
     if (aiData?.ai_response && aiData.ai_response !== lastPlayedResponseRef.current) {
+      setIsThinking(false);
       lastPlayedResponseRef.current = aiData.ai_response;
       
       if (audioRef.current && !audioRef.current.paused) {
@@ -617,21 +622,37 @@ function HomeContent() {
             
             {/* Top Row: Intelligence Dashboard widgets — positioned top-left */}
             <div className="px-8 md:px-12 pt-2 pointer-events-auto">
-              <IntelligenceDashboard state={aiData} onConnectProject={() => {
-                const folderPath = prompt("Enter the project folder path on your laptop:");
-                if (folderPath && activeIncidentId && user) {
-                  fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/analyze`, {
+              <IntelligenceDashboard state={aiData} onConnectProject={async () => {
+                const githubUrl = prompt("Enter GitHub repo URL (e.g. https://github.com/user/repo):");
+                if (!githubUrl || !activeIncidentId || !user) return;
+                if (!githubUrl.startsWith('https://github.com/')) {
+                  alert('Please enter a valid GitHub URL (e.g. https://github.com/user/repo)');
+                  return;
+                }
+                try {
+                  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+                  const res = await fetch(`${backendUrl}/api/github/connect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({ repo_url: githubUrl, incident_id: activeIncidentId })
+                  });
+                  if (!res.ok) throw new Error('Failed to connect repo');
+                  // Trigger VAANI to acknowledge the project
+                  await fetch(`${backendUrl}/api/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
                       incident_id: activeIncidentId,
                       transcript: [{
                         speaker: user.displayName || user.email?.split('@')[0] || "Operator",
                         timestamp: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-                        text: `VAANI, connect to my project at ${folderPath} and scan it for issues.`
+                        text: `VAANI, I just connected my GitHub project at ${githubUrl}. Scan it and tell me what you find.`
                       }]
                     })
-                  }).catch(() => {});
+                  });
+                } catch (e) {
+                  alert('Failed to connect GitHub repo. Make sure it\'s a valid public repository.');
+                  console.error(e);
                 }
               }} />
             </div>
@@ -697,7 +718,13 @@ function HomeContent() {
                         </div>
                       ))
                     ) : (
-                      <div className="text-white/20 text-xs text-center font-light mt-4 tracking-wide">Awaiting voice transmission...</div>
+                      <div className="text-white/20 text-xs text-center font-light mt-4 tracking-wide">
+                        {isThinking ? (
+                          <span className="text-blue-400 animate-pulse">VAANI is thinking...</span>
+                        ) : (
+                          <span>Awaiting voice transmission...</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

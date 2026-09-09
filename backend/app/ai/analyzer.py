@@ -134,14 +134,14 @@ class IncidentAnalyzer:
             self._provider = _create_provider()
         return self._provider
 
-    async def analyze(self, transcript: list[dict]) -> IncidentAnalysis:
+    async def analyze(self, transcript: list[dict], project_context: str | None = None) -> IncidentAnalysis:
         """
         Analyze a transcript and return structured incident intelligence.
         """
-        user_prompt = build_analysis_prompt(transcript)
+        user_prompt = build_analysis_prompt(transcript, project_context=project_context)
 
         # Call LLM with retry on validation failure
-        max_retries = 1
+        max_retries = 0
         last_error = None
 
         for attempt in range(max_retries + 1):

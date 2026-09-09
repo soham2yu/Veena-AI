@@ -100,34 +100,15 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
     # Run AI analysis
     try:
         incident = incident_service.get_incident(request.incident_id)
-        transcript_dicts = [entry.model_dump() for entry in incident.transcript if entry.text not in ("joined the session", "left the session")]
+        all_entries = [entry.model_dump() for entry in incident.transcript if entry.text not in ("joined the session", "left the session")]
+        transcript_dicts = all_entries[-20:]
         
         # Only analyze if we actually have meaningful history
         if transcript_dicts:
-            analysis = await analyzer.analyze(transcript_dicts)
+            project_context = incident.project_context if hasattr(incident, 'project_context') else None
+            analysis = await analyzer.analyze(transcript_dicts, project_context=project_context)
             
-            # Simulate a slow tool call if the agent chose to use a tool
-            if analysis.vaani_action and analysis.vaani_action.action in ("FACT_CHECK", "SUMMARIZE", "COMPARE_VIEWPOINTS", "CONNECT_IDEAS"):
-                import asyncio
-                logger.info("Simulating slow tool call for action: %s", analysis.vaani_action.action)
-                await asyncio.sleep(4)
-                
-                # Check for interruption
-                if incident_service.get_turn(request.incident_id) != current_turn:
-                    logger.info("Tool cancelled due to interruption! Turn changed.")
-                    # Return empty response to prevent stale output
-                    from app.ai.schemas import IncidentAnalysis
-                    return AnalyzeResponse(
-                        incident_id=request.incident_id,
-                        analysis=IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[]),
-                        transcript_length=len(incident.transcript),
-                        message="Cancelled due to interruption"
-                    )
-                
-                # If not interrupted, proceed to "speak" the tool result
-                if analysis.vaani_action.speak:
-                    analysis.ai_response = f"(Tool {analysis.vaani_action.action}) {analysis.vaani_action.text}"
-            elif analysis.vaani_action and analysis.vaani_action.speak and analysis.vaani_action.text:
+            if analysis.vaani_action and analysis.vaani_action.speak and analysis.vaani_action.text:
                 analysis.ai_response = analysis.vaani_action.text
                 
             # Final staleness check before merging

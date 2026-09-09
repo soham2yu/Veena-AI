@@ -11,6 +11,7 @@ RULES:
 - Read the FULL transcript to understand the context.
 - Group findings into TOPICS.
 - Extract FACTS, HYPOTHESES, CONFLICTS, ACTIONS, DECISIONS, TIMELINE, and RISKS.
+- Keep spoken responses under 2 sentences. Be concise.
 
 AGENT POLICY & TRIGGER RULES:
 - Output a `vaani_action`. Allowed actions: STAY_SILENT, ANSWER, FACT_CHECK, SUMMARIZE, REQUEST_PROJECT_ACCESS, INTERJECT_FLAW.
@@ -27,9 +28,16 @@ JSON SCHEMA:
 {"vaani_action":{"action":"STAY_SILENT|ANSWER|FACT_CHECK|SUMMARIZE|REQUEST_PROJECT_ACCESS|INTERJECT_FLAW","speak":true|false,"text":"short spoken response","topic":"topic_name"},"ai_response":"copy text here if speak=true","room_vibe":"Calm|Focused|Stressed|Chaotic","topics":[{"id":"string","name":"string","participants":["string"],"facts":[{"speaker":"string","timestamp":"string","statement":"string","confidence":"reported|verified|disputed"}],"hypotheses":[{"speaker":"string","timestamp":"string","statement":"string","supporting_evidence":["string"],"status":"unverified|investigating|supported|refuted"}],"conflicts":[{"description":"string","statements":[{"speaker":"string","timestamp":"string","statement":"string"}],"status":"unresolved|resolved"}],"actions":[{"description":"string","owner":"string|null","status":"pending|in_progress|completed|blocked","priority":"low|medium|high|critical","speaker":"string","timestamp":"string"}]}],"decisions":[{"speaker":"string","timestamp":"string","statement":"string","status":"active|superseded|reverted"}],"timeline":[{"timestamp":"string","event":"string","speaker":"string","event_type":"observation|action|decision|escalation"}],"risks":[{"description":"string","severity":"low|medium|high|critical","status":"open|mitigated|accepted","speaker":"string|null","timestamp":"string|null"}]}"""
 
 
-def build_analysis_prompt(transcript: list[dict]) -> str:
+def build_analysis_prompt(transcript: list[dict], project_context: str | None = None) -> str:
     """Format transcript entries into the user prompt for the LLM."""
-    lines = ["Analyze:\n"]
+    lines = []
+    if project_context:
+        lines.append("PROJECT CONTEXT (use this to answer code/architecture questions):")
+        lines.append(project_context)
+        lines.append("\nAnalyze:")
+    else:
+        lines.append("Analyze:\n")
+        
     for entry in transcript:
         lines.append(f"[{entry['timestamp']}] {entry['speaker']}: {entry['text']}")
     return "\n".join(lines)
