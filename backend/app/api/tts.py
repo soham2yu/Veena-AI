@@ -14,8 +14,8 @@ async def get_tts(text: str, voice: str = None):
     if not api_key:
         raise HTTPException(status_code=500, detail="Rime API key not configured")
 
-    model = os.getenv("RIME_MODEL", "v1")
-    speaker = os.getenv("RIME_SPEAKER", "amber")
+    model = os.getenv("RIME_MODEL", "mistv3")
+    speaker = os.getenv("RIME_SPEAKER", "luna")
     
     url = os.getenv("RIME_ENDPOINT", "https://users.rime.ai/v1/rime-tts")
     headers = {
