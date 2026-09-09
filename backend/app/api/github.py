@@ -1,4 +1,5 @@
 import logging
+import os
 import httpx
 from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException
@@ -8,6 +9,8 @@ from app.services.incident_service import incident_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
 class ConnectRepoRequest(BaseModel):
     repo_url: str
@@ -32,8 +35,12 @@ async def connect_repo(request: ConnectRepoRequest):
         "User-Agent": "VAANI-AI-App",
         "Accept": "application/vnd.github.v3+json"
     }
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    else:
+        logger.warning("No GITHUB_TOKEN set — using unauthenticated GitHub API (60 req/hr limit)")
 
-    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=10.0) as client:
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=30.0) as client:
         # Get repo metadata
         repo_resp = await client.get(f"https://api.github.com/repos/{owner}/{repo}")
         if repo_resp.status_code != 200:
