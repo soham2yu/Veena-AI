@@ -22,12 +22,31 @@ class IncidentService:
     def __init__(self):
         self._incidents = {}
         if PG_URL:
+            self._init_db()
             self._load_from_db()
         else:
             logger.warning("No DATABASE_URL found. Running fully in-memory.")
 
     def _get_conn(self):
         return psycopg2.connect(PG_URL)
+
+    def _init_db(self):
+        try:
+            with self._get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS incidents (
+                            id VARCHAR(255) PRIMARY KEY,
+                            state_json TEXT,
+                            updated_at VARCHAR(255)
+                        )
+                        """
+                    )
+                conn.commit()
+            logger.info("Ensured incidents table exists in database")
+        except Exception as e:
+            logger.error("Failed to initialize database table: %s", e)
 
     def _load_from_db(self):
         try:

@@ -2,7 +2,7 @@
 
 import { IncidentState, Fact, Hypothesis, Action, Risk, TimelineEvent } from '@/types';
 import { useState } from 'react';
-import { ShieldAlert, Clock, Activity, CheckCircle, Database, Github } from 'lucide-react';
+import { ShieldAlert, Clock, Activity, CheckCircle, Database, GitBranch } from 'lucide-react';
 
 export default function IntelligenceDashboard({ state, onConnectProject }: { state: IncidentState | null, onConnectProject?: () => void }) {
   const [expandedSection, setExpandedSection] = useState<'facts' | 'hypotheses' | 'actions' | 'risks' | 'timeline' | null>(null);
@@ -195,7 +195,7 @@ export default function IntelligenceDashboard({ state, onConnectProject }: { sta
         {/* Connect Project Button */}
         {onConnectProject && (
           <div onClick={onConnectProject} className="bg-blue-500/10 backdrop-blur-xl border border-blue-500/30 rounded-xl px-4 py-3 cursor-pointer hover:border-blue-500/70 hover:bg-blue-500/20 transition-all flex items-center gap-2 min-w-[130px] group">
-            <Github className="w-4 h-4 text-blue-400 group-hover:text-blue-300" />
+            <GitBranch className="w-4 h-4 text-blue-400 group-hover:text-blue-300" />
             <div>
               <h2 className="text-blue-400 text-[8px] tracking-[0.2em] uppercase font-bold">Connect</h2>
               <div className="text-blue-300/60 text-[8px] uppercase mt-0.5">GitHub</div>
