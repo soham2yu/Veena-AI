@@ -28,12 +28,18 @@ async def connect_repo(request: ConnectRepoRequest):
     context_parts = []
     files_analyzed = 0
 
-    async with httpx.AsyncClient() as client:
+    headers = {
+        "User-Agent": "VAANI-AI-App",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=10.0) as client:
         # Get repo metadata
         repo_resp = await client.get(f"https://api.github.com/repos/{owner}/{repo}")
         if repo_resp.status_code != 200:
-            logger.error(f"Failed to fetch repo metadata: {repo_resp.status_code}")
-            raise HTTPException(status_code=repo_resp.status_code, detail="Failed to fetch repository metadata from GitHub")
+            logger.error(f"Failed to fetch repo metadata: {repo_resp.status_code} - {repo_resp.text}")
+            detail = "Rate limited by GitHub" if repo_resp.status_code == 403 else "Repository not found or private"
+            raise HTTPException(status_code=repo_resp.status_code, detail=detail)
         
         repo_data = repo_resp.json()
         context_parts.append(f"Repository: {owner}/{repo}")
@@ -43,12 +49,11 @@ async def connect_repo(request: ConnectRepoRequest):
         context_parts.append("\n--- FILE STRUCTURE ---")
 
         # Get file tree
-        tree_resp = await client.get(f"https://api.github.com/repos/{owner}/{repo}/git/trees/main?recursive=1")
-        if tree_resp.status_code == 404:
-            tree_resp = await client.get(f"https://api.github.com/repos/{owner}/{repo}/git/trees/master?recursive=1")
+        branch = repo_data.get("default_branch", "main")
+        tree_resp = await client.get(f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1")
             
         if tree_resp.status_code != 200:
-            logger.error(f"Failed to fetch repo tree: {tree_resp.status_code}")
+            logger.error(f"Failed to fetch repo tree: {tree_resp.status_code} - {tree_resp.text}")
             raise HTTPException(status_code=tree_resp.status_code, detail="Failed to fetch repository tree")
             
         tree_data = tree_resp.json()
@@ -89,6 +94,9 @@ async def connect_repo(request: ConnectRepoRequest):
     
     try:
         incident = incident_service.get_incident(request.incident_id)
+        if not incident:
+            incident = incident_service.create_incident(request.incident_id)
+            
         incident.project_context = context_string
         incident_service._save_to_db(incident)
     except Exception as e:
