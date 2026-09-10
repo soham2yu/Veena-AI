@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 import IntelligenceDashboard from '@/components/IntelligenceDashboard';
 import ParticleTextOverlay from '@/components/ParticleTextOverlay';
 import AIChatbox from '@/components/AIChatbox';
-import { Square, Pause, Play, Users, LogOut, User, Activity } from 'lucide-react';
+import { Square, Pause, Play, Users, LogOut, User, Activity, GitBranch, X, LoaderCircle, ArrowUpRight } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import AuthModal from '@/components/AuthModal';
@@ -35,6 +35,11 @@ function HomeContent() {
   const [hasJoined, setHasJoined] = useState(false);
   const [isTextVisible, setIsTextVisible] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [isConnectingRepo, setIsConnectingRepo] = useState(false);
+  const [projectConnectionMessage, setProjectConnectionMessage] = useState<string | null>(null);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [githubUrl, setGithubUrl] = useState('');
+  const [projectUrlError, setProjectUrlError] = useState<string | null>(null);
 
   // Auto-join logic if URL ID is present
   useEffect(() => {
@@ -147,6 +152,70 @@ function HomeContent() {
     window.location.href = '/'; 
   };
 
+  const connectProject = async () => {
+    if (isConnectingRepo || !activeIncidentId || !user) return;
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(githubUrl.trim());
+    } catch {
+      setProjectUrlError('Enter a complete GitHub URL, such as https://github.com/owner/repo.');
+      return;
+    }
+    const repoParts = parsedUrl.pathname.split('/').filter(Boolean);
+    if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== 'github.com' || repoParts.length !== 2) {
+      setProjectUrlError('Use a public repository URL in the format https://github.com/owner/repo.');
+      return;
+    }
+
+    setProjectUrlError(null);
+    setIsConnectingRepo(true);
+    setProjectConnectionMessage('Scanning repository...');
+    try {
+      const configuredBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+      const backendUrl = (configuredBackendUrl || 'http://localhost:8000').replace(/\/+$/, '');
+      const isLocalBackend = /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(backendUrl);
+      if (typeof window !== 'undefined' && !['localhost', '127.0.0.1'].includes(window.location.hostname) && isLocalBackend) {
+        throw new Error('The deployed frontend is missing NEXT_PUBLIC_BACKEND_URL. Set it to the public FastAPI URL and redeploy.');
+      }
+      const res = await fetch(`${backendUrl}/api/github/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_url: parsedUrl.toString(), incident_id: activeIncidentId })
+      });
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const errorBody = await res.json();
+          detail = typeof errorBody.detail === 'string' ? errorBody.detail : '';
+        } catch {
+          // The API may return a platform-generated HTML/404 response.
+        }
+        if (res.status === 404) {
+          throw new Error('The deployed backend does not expose the GitHub connector yet. Redeploy the backend and try again.');
+        }
+        throw new Error(detail || `GitHub connection failed (${res.status}).`);
+      }
+      setProjectConnectionMessage('Repository connected. VAANI is scanning the project context.');
+      setShowProjectModal(false);
+      await fetch(`${backendUrl}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          incident_id: activeIncidentId,
+          transcript: [{
+            speaker: user.displayName || user.email?.split('@')[0] || "Operator",
+            timestamp: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            text: `VAANI, I just connected my GitHub project at ${parsedUrl.toString()}. Scan it and tell me what you find.`
+          }]
+        })
+      });
+    } catch (e) {
+      setProjectConnectionMessage(e instanceof Error ? e.message : 'Unable to connect to the GitHub service.');
+    } finally {
+      setIsConnectingRepo(false);
+    }
+  };
+
   const filteredTranscript = aiData?.transcript?.filter(t => t.text !== 'joined the session' && t.text !== 'left the session') || [];
   const latestTranscriptText = filteredTranscript.length > 0
     ? filteredTranscript[filteredTranscript.length - 1].text
@@ -178,7 +247,7 @@ function HomeContent() {
       }
       const audio = new Audio(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/tts?text=${encodeURIComponent(aiData.ai_response)}`);
       audioRef.current = audio;
-      let subtitleInterval: NodeJS.Timeout;
+      let subtitleInterval: NodeJS.Timeout | undefined;
 
       let animationFrameId: number;
 
@@ -622,45 +691,22 @@ function HomeContent() {
             
             {/* Top Row: Intelligence Dashboard widgets — positioned top-left */}
             <div className="px-8 md:px-12 pt-2 pointer-events-auto">
-              <IntelligenceDashboard state={aiData} onConnectProject={async () => {
-                const githubUrl = prompt("Enter GitHub repo URL (e.g. https://github.com/user/repo):");
-                if (!githubUrl || !activeIncidentId || !user) return;
-                if (!githubUrl.startsWith('https://github.com/')) {
-                  alert('Please enter a valid GitHub URL (e.g. https://github.com/user/repo)');
-                  return;
-                }
-                try {
-                  const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000').replace(/\/+$/, '');
-                  console.log('[VAANI] Connecting to GitHub:', githubUrl, 'via', backendUrl);
-                  const res = await fetch(`${backendUrl}/api/github/connect`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ repo_url: githubUrl, incident_id: activeIncidentId })
-                  });
-                  console.log('[VAANI] GitHub connect response:', res.status);
-                  if (!res.ok) {
-                    const errText = await res.text().catch(() => '');
-                    console.error('[VAANI] GitHub connect error body:', errText);
-                    throw new Error(`Failed to connect repo (${res.status})`);
-                  }
-                  // Trigger VAANI to acknowledge the project
-                  await fetch(`${backendUrl}/api/analyze`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      incident_id: activeIncidentId,
-                      transcript: [{
-                        speaker: user.displayName || user.email?.split('@')[0] || "Operator",
-                        timestamp: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-                        text: `VAANI, I just connected my GitHub project at ${githubUrl}. Scan it and tell me what you find.`
-                      }]
-                    })
-                  });
-                } catch (e) {
-                  alert('Failed to connect GitHub repo. Make sure it\'s a valid public repository.');
-                  console.error('[VAANI] GitHub connect failed:', e);
-                }
+              <IntelligenceDashboard state={aiData} onConnectProject={() => {
+                setProjectUrlError(null);
+                setProjectConnectionMessage(null);
+                setShowProjectModal(true);
               }} />
+              {projectConnectionMessage && (
+                <div className={`mt-3 max-w-xl rounded-lg border px-3 py-2 text-[10px] tracking-wide backdrop-blur-md ${
+                  projectConnectionMessage.startsWith('Repository connected')
+                    ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                    : projectConnectionMessage === 'Scanning repository...'
+                      ? 'border-blue-500/30 bg-blue-500/10 text-blue-300'
+                      : 'border-red-500/30 bg-red-500/10 text-red-300'
+                }`} role="status">
+                  {projectConnectionMessage}
+                </div>
+              )}
             </div>
 
             {/* Bottom Row: Transcript pinned bottom-left */}
@@ -749,6 +795,62 @@ function HomeContent() {
                 if (showParticleText) setDisplayText("");
               }}
             />
+          )}
+
+          {showProjectModal && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md pointer-events-auto" role="dialog" aria-modal="true" aria-labelledby="connect-project-title">
+              <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-[#080b14]/95 shadow-[0_24px_100px_rgba(0,0,0,0.65)]">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-400 to-transparent" />
+                <div className="flex items-start justify-between border-b border-white/10 px-6 py-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-400/30 bg-blue-400/10">
+                      <GitBranch className="h-5 w-5 text-blue-300" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-blue-300/70">Project context</p>
+                      <h2 id="connect-project-title" className="mt-1 text-lg font-semibold tracking-tight text-white">Connect a repository</h2>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => !isConnectingRepo && setShowProjectModal(false)} className="rounded-lg p-2 text-white/40 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed" disabled={isConnectingRepo} aria-label="Close dialog">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={(event) => { event.preventDefault(); void connectProject(); }} className="space-y-5 px-6 py-6">
+                  <div>
+                    <label htmlFor="github-repository-url" className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">GitHub repository URL</label>
+                    <div className={`flex items-center gap-3 rounded-xl border bg-white/[0.04] px-4 transition ${projectUrlError ? 'border-red-400/60' : 'border-white/15 focus-within:border-blue-400/70'}`}>
+                      <GitBranch className="h-4 w-4 shrink-0 text-white/35" />
+                      <input id="github-repository-url" value={githubUrl} onChange={(event) => { setGithubUrl(event.target.value); setProjectUrlError(null); }} placeholder="https://github.com/owner/repository" className="h-12 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/25" autoFocus disabled={isConnectingRepo} />
+                    </div>
+                    {projectUrlError ? <p className="mt-2 text-xs text-red-300">{projectUrlError}</p> : <p className="mt-2 text-xs leading-relaxed text-white/35">VAANI will inspect public source files and add grounded findings to this incident.</p>}
+                  </div>
+
+                  {isConnectingRepo && (
+                    <div className="rounded-xl border border-blue-400/20 bg-blue-400/[0.06] p-4">
+                      <div className="flex items-center gap-3">
+                        <LoaderCircle className="h-4 w-4 animate-spin text-blue-300" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.18em]">
+                            <span className="text-blue-200">Scanning repository</span>
+                            <span className="text-blue-300/50">Live</span>
+                          </div>
+                          <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-blue-500 to-cyan-300" /></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-3">
+                    <button type="button" onClick={() => setShowProjectModal(false)} disabled={isConnectingRepo} className="rounded-lg px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/45 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40">Cancel</button>
+                    <button type="submit" disabled={isConnectingRepo || !githubUrl.trim()} className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_0_24px_rgba(59,130,246,0.25)] transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-40">
+                      {isConnectingRepo ? 'Scanning' : 'Connect repository'}
+                      {!isConnectingRepo && <ArrowUpRight className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
         </div>
         )}

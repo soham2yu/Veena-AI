@@ -4,6 +4,8 @@ export const vertexShader = `
   uniform float uState;
   uniform float uScale;
   uniform float uSplit;
+  uniform vec2 uMouse;
+  uniform float uMouseActive;
   
   attribute float aSize;
   attribute vec3 aRandom;
@@ -98,6 +100,14 @@ export const vertexShader = `
     float dir = sign(pos.x);
     pos.x += dir * (1.5 + uAmplitude * 0.5) * uSplit; 
 
+    // Pointer field: gently push nearby particles outward and enlarge their glow.
+    vec2 mouseWorld = vec2(uMouse.x * 5.0, uMouse.y * 3.0);
+    vec2 particleWorld = pos.xy;
+    vec2 awayFromMouse = particleWorld - mouseWorld;
+    float mouseDistance = length(awayFromMouse);
+    float mouseInfluence = (1.0 - smoothstep(0.0, 2.6, mouseDistance)) * uMouseActive;
+    pos.xy += normalize(vec3(awayFromMouse, 0.001)).xy * mouseInfluence * 0.28;
+
     // Apply smooth scaling from GSAP
     pos *= uScale;
 
@@ -105,7 +115,7 @@ export const vertexShader = `
     
     // Smaller particles, subtle core boost
     float sizeBoost = 1.0 + coreInfluence * 1.0;
-    gl_PointSize = aSize * (120.0 / -mvPosition.z) * (1.0 + uAmplitude * 0.6) * sizeBoost;
+    gl_PointSize = aSize * (170.0 / -mvPosition.z) * (1.0 + uAmplitude * 0.6 + mouseInfluence * 1.2) * sizeBoost;
     
     vPos = position;
     vAlpha = aRandom.x;

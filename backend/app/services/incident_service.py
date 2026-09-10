@@ -178,6 +178,7 @@ class IncidentService:
         incident.decisions.extend(analysis.decisions)
         incident.timeline.extend(analysis.timeline)
         incident.risks.extend(analysis.risks)
+        incident.code_findings.extend(analysis.code_findings)
 
         # Update the latest AI response if present
         # Update the latest AI response if present

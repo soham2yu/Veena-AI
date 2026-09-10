@@ -14,6 +14,7 @@ from app.ai.schemas import (
     Decision,
     Risk,
     TimelineEvent,
+    CodeFinding,
 )
 
 
@@ -60,6 +61,7 @@ class IncidentState(BaseModel):
     decisions: list[Decision] = Field(default_factory=list)
     timeline: list[TimelineEvent] = Field(default_factory=list)
     risks: list[Risk] = Field(default_factory=list)
+    code_findings: list[CodeFinding] = Field(default_factory=list)
 
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()

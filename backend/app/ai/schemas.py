@@ -112,6 +112,18 @@ class Risk(BaseModel):
     )
 
 
+class CodeFinding(BaseModel):
+    """A concrete defect or security issue found in scanned project code."""
+
+    title: str = Field(description="Short name of the defect")
+    file: str = Field(description="Repository-relative file path")
+    line: int | None = Field(default=None, description="1-based line number, if known")
+    severity: str = Field(description="low | medium | high | critical")
+    evidence: str = Field(description="Specific code or behavior that supports the finding")
+    explanation: str = Field(description="Why this is a problem")
+    recommendation: str = Field(description="Concrete fix recommendation")
+
+
 class Topic(BaseModel):
     """An active investigation thread or subject of conversation."""
     
@@ -163,4 +175,8 @@ class IncidentAnalysis(BaseModel):
     risks: list[Risk] = Field(
         default_factory=list, 
         description="Global unresolved risks or concerns"
+    )
+    code_findings: list[CodeFinding] = Field(
+        default_factory=list,
+        description="Concrete defects found in project code, only when project context is provided",
     )

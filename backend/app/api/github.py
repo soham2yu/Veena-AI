@@ -16,14 +16,27 @@ class ConnectRepoRequest(BaseModel):
     repo_url: str
     incident_id: str
 
+
+def parse_github_repo_url(repo_url: str) -> tuple[str, str]:
+    parsed = urlparse(repo_url.strip())
+    if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
+        raise ValueError("Repository URL must use https://github.com/owner/repo")
+
+    path_parts = [part for part in parsed.path.strip("/").split("/") if part]
+    if len(path_parts) != 2:
+        raise ValueError("Repository URL must contain exactly an owner and repository")
+
+    owner, repo = path_parts
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+    if not owner or not repo:
+        raise ValueError("Repository owner and name are required")
+    return owner, repo
+
 @router.post("/connect")
 async def connect_repo(request: ConnectRepoRequest):
     try:
-        parsed = urlparse(request.repo_url)
-        path_parts = parsed.path.strip("/").split("/")
-        if len(path_parts) < 2:
-            raise ValueError("Invalid repo URL format")
-        owner, repo = path_parts[0], path_parts[1]
+        owner, repo = parse_github_repo_url(request.repo_url)
     except Exception as e:
         logger.error(f"Failed to parse repo url: {e}")
         raise HTTPException(status_code=400, detail="Invalid repository URL. Provide a URL like https://github.com/owner/repo")
@@ -76,13 +89,21 @@ async def connect_repo(request: ConnectRepoRequest):
             if path in prioritized_files:
                 key_files.append(path)
                 
-        for path in tree_paths:
+        code_paths = [
+            path for path in tree_paths
+            if path.endswith((".py", ".ts", ".tsx", ".js", ".jsx", ".java", ".go", ".rs", ".rb"))
+            and not any(part in {"node_modules", ".next", "dist", "build", "__pycache__"} for part in path.split("/"))
+        ]
+        code_paths.sort(key=lambda path: (
+            0 if path.startswith(("backend/", "src/", "app/")) else 1,
+            path.count("/"),
+            path,
+        ))
+        for path in code_paths:
             if len(key_files) >= 15:
                 break
-            if path.startswith(("src/", "app/")) or "/" not in path:
-                if path.endswith((".py", ".ts", ".tsx", ".js")):
-                    if path not in key_files:
-                        key_files.append(path)
+            if path not in key_files:
+                key_files.append(path)
                         
         key_files = key_files[:15]
         
@@ -93,8 +114,11 @@ async def connect_repo(request: ConnectRepoRequest):
             raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
             raw_resp = await client.get(raw_url)
             if raw_resp.status_code == 200:
-                content = raw_resp.text[:5000]
-                context_parts.append(f"\n### {path} ###\n{content}")
+                content = raw_resp.text[:12000]
+                numbered_content = "\n".join(
+                    f"{line_number}: {line}" for line_number, line in enumerate(content.splitlines(), 1)
+                )
+                context_parts.append(f"\n### {path} ###\n{numbered_content}")
                 files_analyzed += 1
 
     context_string = "\n".join(context_parts)

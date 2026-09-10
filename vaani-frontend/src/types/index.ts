@@ -61,6 +61,16 @@ export interface Risk {
   timestamp: string | null;
 }
 
+export interface CodeFinding {
+  title: string;
+  file: string;
+  line: number | null;
+  severity: string;
+  evidence: string;
+  explanation: string;
+  recommendation: string;
+}
+
 export interface TranscriptEntry {
   speaker: string;
   timestamp: string;
@@ -77,6 +87,7 @@ export interface IncidentState {
   decisions: Decision[];
   timeline: TimelineEvent[];
   risks: Risk[];
+  code_findings: CodeFinding[];
   transcript: TranscriptEntry[];
   room_vibe: string;
   ai_response?: string;

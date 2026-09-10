@@ -85,7 +85,7 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
     if not meaningful_entries:
         logger.info("Skipping AI analysis: only system messages in chunk")
         from app.ai.schemas import IncidentAnalysis
-        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[])
+        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[])
         incident = incident_service.get_incident(request.incident_id)
         return AnalyzeResponse(
             incident_id=incident.id,
@@ -117,7 +117,7 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
                  from app.ai.schemas import IncidentAnalysis
                  return AnalyzeResponse(
                      incident_id=request.incident_id,
-                     analysis=IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[]),
+                     analysis=IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[]),
                      transcript_length=len(incident.transcript),
                      message="Dropped stale response"
                  )
@@ -131,12 +131,12 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
     except ValueError as e:
         logger.error("Analysis failed for incident %s: %s", request.incident_id, e)
         from app.ai.schemas import IncidentAnalysis
-        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[])
+        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[])
         incident = incident_service.get_incident(request.incident_id)
     except Exception as e:
         logger.error("Unexpected error analyzing incident %s: %s", request.incident_id, e)
         from app.ai.schemas import IncidentAnalysis
-        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[])
+        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[])
         incident = incident_service.get_incident(request.incident_id)
 
     return AnalyzeResponse(

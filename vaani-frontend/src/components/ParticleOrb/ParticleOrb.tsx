@@ -18,6 +18,7 @@ export default function ParticleOrb({ audioAmplitude, aiState, isTextVisible = f
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const coreRef = useRef<THREE.Group>(null);
   const ambientRef = useRef<THREE.Points>(null);
+  const pointerRef = useRef({ x: 0, y: 0, active: 0 });
   
   // GSAP animation targets
   const scaleTarget = useRef({ scale: 1.0 });
@@ -49,6 +50,24 @@ export default function ParticleOrb({ audioAmplitude, aiState, isTextVisible = f
       ease: "power2.inOut"
     });
   }, [isTextVisible]);
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      pointerRef.current.x = (event.clientX / window.innerWidth - 0.5) * 2;
+      pointerRef.current.y = (0.5 - event.clientY / window.innerHeight) * 2;
+      pointerRef.current.active = 1;
+    };
+    const handlePointerLeave = () => {
+      pointerRef.current.active = 0;
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerleave', handlePointerLeave);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerleave', handlePointerLeave);
+    };
+  }, []);
 
   // Main orb particles — smaller sizes
   const { positions, sizes, randoms } = useMemo(() => {
@@ -117,6 +136,8 @@ export default function ParticleOrb({ audioAmplitude, aiState, isTextVisible = f
     uState: { value: 0 },
     uScale: { value: 1.0 },
     uSplit: { value: 0.0 },
+    uMouse: { value: new THREE.Vector2() },
+    uMouseActive: { value: 0 },
     uColorStart: { value: new THREE.Color('#3b82f6') },
     uColorEnd: { value: new THREE.Color('#10b981') }
   }), []);
@@ -132,6 +153,15 @@ export default function ParticleOrb({ audioAmplitude, aiState, isTextVisible = f
       materialRef.current.uniforms.uState.value = aiState;
       materialRef.current.uniforms.uScale.value = scaleTarget.current.scale;
       materialRef.current.uniforms.uSplit.value = splitTarget.current.split;
+      materialRef.current.uniforms.uMouse.value.lerp(
+        new THREE.Vector2(pointerRef.current.x, pointerRef.current.y),
+        0.08
+      );
+      materialRef.current.uniforms.uMouseActive.value = THREE.MathUtils.lerp(
+        materialRef.current.uniforms.uMouseActive.value,
+        pointerRef.current.active,
+        0.08
+      );
     }
 
     if (pointsRef.current) {

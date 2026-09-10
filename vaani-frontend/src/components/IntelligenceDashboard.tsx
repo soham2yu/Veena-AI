@@ -2,10 +2,10 @@
 
 import { IncidentState, Fact, Hypothesis, Action, Risk, TimelineEvent } from '@/types';
 import { useState } from 'react';
-import { ShieldAlert, Clock, Activity, CheckCircle, Database, GitBranch } from 'lucide-react';
+import { ShieldAlert, Clock, Activity, CheckCircle, Database, GitBranch, Bug } from 'lucide-react';
 
 export default function IntelligenceDashboard({ state, onConnectProject }: { state: IncidentState | null, onConnectProject?: () => void }) {
-  const [expandedSection, setExpandedSection] = useState<'facts' | 'hypotheses' | 'actions' | 'risks' | 'timeline' | null>(null);
+  const [expandedSection, setExpandedSection] = useState<'facts' | 'hypotheses' | 'actions' | 'risks' | 'timeline' | 'code_findings' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const allFacts = state?.topics?.flatMap(t => t.facts) || [];
@@ -13,8 +13,9 @@ export default function IntelligenceDashboard({ state, onConnectProject }: { sta
   const allActions = state?.topics?.flatMap(t => t.actions) || [];
   const allRisks = state?.risks || [];
   const allTimeline = state?.timeline || [];
+  const allCodeFindings = state?.code_findings || [];
 
-  const handleExpand = (section: 'facts' | 'hypotheses' | 'actions' | 'risks' | 'timeline') => {
+  const handleExpand = (section: 'facts' | 'hypotheses' | 'actions' | 'risks' | 'timeline' | 'code_findings') => {
     setExpandedSection(section);
     setSearchQuery('');
   };
@@ -77,7 +78,7 @@ export default function IntelligenceDashboard({ state, onConnectProject }: { sta
           <span className="text-red-100">{r.description}</span>
         </div>
       )};
-    } else {
+    } else if (expandedSection === 'timeline') {
       title = 'Incident Timeline';
       data = allTimeline.filter(t => !searchQuery || t.event.toLowerCase().includes(searchQuery.toLowerCase()));
       renderer = (item: unknown, i: number) => { const t = item as TimelineEvent; return (
@@ -90,6 +91,27 @@ export default function IntelligenceDashboard({ state, onConnectProject }: { sta
           <span className="text-white">{t.event}</span>
         </div>
       )};
+    } else {
+      title = 'Code Findings';
+      data = allCodeFindings.filter(f => !searchQuery || `${f.title} ${f.file} ${f.evidence} ${f.explanation}`.toLowerCase().includes(searchQuery.toLowerCase()));
+      renderer = (item: unknown, i: number) => {
+        const finding = item as IncidentState['code_findings'][number];
+        const severityClass = finding.severity === 'critical' || finding.severity === 'high'
+          ? 'border-red-500/50 text-red-200'
+          : finding.severity === 'medium' ? 'border-orange-500/50 text-orange-200' : 'border-blue-500/50 text-blue-200';
+        return (
+          <div key={i} className={`border-l-2 pl-4 py-3 text-sm bg-white/5 pr-4 rounded-r-lg space-y-2 ${severityClass}`}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold text-white">{finding.title}</span>
+              <span className="text-[8px] uppercase tracking-wider">{finding.severity}</span>
+            </div>
+            <div className="font-mono text-[10px] text-cyan-300/80">{finding.file}{finding.line ? `:${finding.line}` : ''}</div>
+            <p className="text-white/80">{finding.explanation}</p>
+            <p className="text-white/50"><span className="text-white/70">Fix:</span> {finding.recommendation}</p>
+            <p className="font-mono text-[10px] text-white/40">Evidence: {finding.evidence}</p>
+          </div>
+        );
+      };
     }
 
     return (
@@ -190,6 +212,15 @@ export default function IntelligenceDashboard({ state, onConnectProject }: { sta
             <div className="text-white/50 text-[8px] uppercase mt-0.5 truncate max-w-[100px]">{allTimeline[allTimeline.length-1]?.event?.slice(0,20) || 'None'}</div>
           </div>
           <div className="text-2xl font-black text-white tracking-tighter tabular-nums ml-auto">{allTimeline.length.toString().padStart(2, '0')}</div>
+        </div>
+
+        {/* Code Findings */}
+        <div onClick={() => handleExpand('code_findings')} className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 cursor-pointer hover:border-orange-500/50 hover:bg-white/5 transition-all flex items-center gap-3 min-w-[145px] group">
+          <div>
+            <h2 className="text-white/40 text-[8px] tracking-[0.2em] uppercase font-bold group-hover:text-orange-400/80 transition-colors flex items-center gap-1"><Bug className="w-3 h-3" /> Findings</h2>
+            <div className="text-white/50 text-[8px] uppercase mt-0.5 truncate max-w-[110px]">{allCodeFindings[allCodeFindings.length - 1]?.file || 'None'}</div>
+          </div>
+          <div className="text-2xl font-black text-white tracking-tighter tabular-nums ml-auto">{allCodeFindings.length.toString().padStart(2, '0')}</div>
         </div>
 
         {/* Connect Project Button */}
