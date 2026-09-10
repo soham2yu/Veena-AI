@@ -130,14 +130,10 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
         
     except ValueError as e:
         logger.error("Analysis failed for incident %s: %s", request.incident_id, e)
-        from app.ai.schemas import IncidentAnalysis
-        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[])
-        incident = incident_service.get_incident(request.incident_id)
+        raise HTTPException(status_code=502, detail=f"AI analysis failed: {e}") from e
     except Exception as e:
         logger.error("Unexpected error analyzing incident %s: %s", request.incident_id, e)
-        from app.ai.schemas import IncidentAnalysis
-        analysis = IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[])
-        incident = incident_service.get_incident(request.incident_id)
+        raise HTTPException(status_code=502, detail="AI analysis service is unavailable") from e
 
     return AnalyzeResponse(
         incident_id=request.incident_id,
