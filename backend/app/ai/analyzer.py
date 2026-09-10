@@ -78,7 +78,7 @@ class OpenAIProvider(LLMProvider):
 
 
 class GeminiProvider(LLMProvider):
-    """Google Gemini provider using the native google-genai SDK for maximum speed."""
+    """Google Gemini through its OpenAI-compatible API."""
 
     def __init__(self):
         api_key = _llm_api_key()
@@ -94,25 +94,27 @@ class GeminiProvider(LLMProvider):
             if model.strip() and model.strip() != self.model
         ]
         
-        from google import genai
-        self.client = genai.Client(api_key=api_key)
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=os.getenv(
+                "LLM_API_BASE",
+                "https://generativelanguage.googleapis.com/v1beta/openai/",
+            ),
+        )
 
     async def generate_json(self, system_prompt: str, user_prompt: str) -> dict:
-        from google.genai import types
-
         models_to_try = [self.model, *self.fallback_models]
-        response = None
         for model in models_to_try:
             logger.info("Calling Gemini model=%s", model)
             try:
-                response = await self.client.aio.models.generate_content(
+                response = await self.client.chat.completions.create(
                     model=model,
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        temperature=0,
-                        response_mime_type="application/json",
-                    ),
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0,
                 )
                 if model != self.model:
                     logger.warning(
@@ -133,9 +135,7 @@ class GeminiProvider(LLMProvider):
                     raise
                 logger.warning("Gemini model %s is unavailable; trying fallback", model)
 
-        if response is None:
-            raise ValueError("Gemini returned no response")
-        content = response.text
+        content = response.choices[0].message.content
         if not content:
             raise ValueError("LLM returned empty response")
 
