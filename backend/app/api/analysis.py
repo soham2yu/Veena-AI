@@ -133,7 +133,10 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(status_code=502, detail=f"AI analysis failed: {e}") from e
     except Exception as e:
         logger.error("Unexpected error analyzing incident %s: %s", request.incident_id, e)
-        raise HTTPException(status_code=502, detail="AI analysis service is unavailable") from e
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI provider error ({type(e).__name__}): {e}",
+        ) from e
 
     return AnalyzeResponse(
         incident_id=request.incident_id,
