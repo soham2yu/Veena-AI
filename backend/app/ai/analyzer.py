@@ -83,26 +83,58 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         api_key = _llm_api_key()
 
-        self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+        self.model = os.getenv("LLM_MODEL", "gemini-3.5-flash-lite")
+        configured_fallbacks = os.getenv(
+            "LLM_FALLBACK_MODELS",
+            "gemini-2.5-flash-lite,gemini-2.0-flash",
+        )
+        self.fallback_models = [
+            model.strip()
+            for model in configured_fallbacks.split(",")
+            if model.strip() and model.strip() != self.model
+        ]
         
         from google import genai
         self.client = genai.Client(api_key=api_key)
 
     async def generate_json(self, system_prompt: str, user_prompt: str) -> dict:
-        logger.info("Calling Gemini model=%s", self.model)
-        
         from google.genai import types
-        
-        response = await self.client.aio.models.generate_content(
-            model=self.model,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=0,
-                response_mime_type="application/json",
-            ),
-        )
 
+        models_to_try = [self.model, *self.fallback_models]
+        response = None
+        for model in models_to_try:
+            logger.info("Calling Gemini model=%s", model)
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=model,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=0,
+                        response_mime_type="application/json",
+                    ),
+                )
+                if model != self.model:
+                    logger.warning(
+                        "Requested Gemini model %s was unavailable; using fallback %s",
+                        self.model,
+                        model,
+                    )
+                break
+            except Exception as error:
+                error_text = str(error).lower()
+                status_code = getattr(error, "status_code", None)
+                model_unavailable = status_code == 404 or (
+                    "not_found" in error_text
+                    or "model not found" in error_text
+                    or "does not exist" in error_text
+                )
+                if not model_unavailable or model == models_to_try[-1]:
+                    raise
+                logger.warning("Gemini model %s is unavailable; trying fallback", model)
+
+        if response is None:
+            raise ValueError("Gemini returned no response")
         content = response.text
         if not content:
             raise ValueError("LLM returned empty response")
