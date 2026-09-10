@@ -36,7 +36,7 @@ export default function AIChatbox({ incidentId, aiResponse, showParticleText, on
 
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-      await fetch(`${backendUrl}/api/analyze`, {
+      const response = await fetch(`${backendUrl}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -48,6 +48,16 @@ export default function AIChatbox({ incidentId, aiResponse, showParticleText, on
           }] 
         })
       });
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const errorBody = await response.json();
+          detail = typeof errorBody.detail === 'string' ? errorBody.detail : '';
+        } catch {
+          // The API may return a platform-generated HTML error page.
+        }
+        throw new Error(detail || `AI analysis failed (${response.status}).`);
+      }
       // The AI response will come through the websocket and be spoken out loud, 
       // but we could also add it to the chat if we track it.
       // For now, the user gets visual and audio feedback via the main UI.

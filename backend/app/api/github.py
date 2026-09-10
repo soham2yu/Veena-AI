@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+MAX_PROJECT_CONTEXT_CHARS = 80000
+MAX_FILE_CONTEXT_CHARS = 8000
 
 class ConnectRepoRequest(BaseModel):
     repo_url: str
@@ -114,7 +116,7 @@ async def connect_repo(request: ConnectRepoRequest):
             raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
             raw_resp = await client.get(raw_url)
             if raw_resp.status_code == 200:
-                content = raw_resp.text[:12000]
+                content = raw_resp.text[:MAX_FILE_CONTEXT_CHARS]
                 numbered_content = "\n".join(
                     f"{line_number}: {line}" for line_number, line in enumerate(content.splitlines(), 1)
                 )
@@ -122,6 +124,15 @@ async def connect_repo(request: ConnectRepoRequest):
                 files_analyzed += 1
 
     context_string = "\n".join(context_parts)
+    if len(context_string) > MAX_PROJECT_CONTEXT_CHARS:
+        logger.warning(
+            "Truncating GitHub context for %s/%s from %d to %d characters",
+            owner,
+            repo,
+            len(context_string),
+            MAX_PROJECT_CONTEXT_CHARS,
+        )
+        context_string = context_string[:MAX_PROJECT_CONTEXT_CHARS]
     
     try:
         incident = incident_service.get_incident(request.incident_id)

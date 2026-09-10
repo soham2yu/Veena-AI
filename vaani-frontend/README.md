@@ -16,6 +16,8 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+For a deployed frontend, define `NEXT_PUBLIC_BACKEND_URL` as the public FastAPI URL before running the production build. This value is embedded by Next.js at build time. The backend must allow the deployed frontend origin in `CORS_ORIGINS`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

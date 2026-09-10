@@ -103,7 +103,7 @@ function HomeContent() {
 
       setIsThinking(true);
       try {
-        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/analyze`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -111,6 +111,16 @@ function HomeContent() {
             transcript: [entry] 
           })
         });
+        if (!response.ok) {
+          let detail = '';
+          try {
+            const errorBody = await response.json();
+            detail = typeof errorBody.detail === 'string' ? errorBody.detail : '';
+          } catch {
+            // The API may return a platform-generated HTML error page.
+          }
+          throw new Error(detail || `AI analysis failed (${response.status}).`);
+        }
       } catch (e) {
         console.error("Failed to send transcript", e);
       } finally {
@@ -197,7 +207,7 @@ function HomeContent() {
       }
       setProjectConnectionMessage('Repository connected. VAANI is scanning the project context.');
       setShowProjectModal(false);
-      await fetch(`${backendUrl}/api/analyze`, {
+      const analyzeResponse = await fetch(`${backendUrl}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,6 +219,16 @@ function HomeContent() {
           }]
         })
       });
+      if (!analyzeResponse.ok) {
+        let detail = '';
+        try {
+          const errorBody = await analyzeResponse.json();
+          detail = typeof errorBody.detail === 'string' ? errorBody.detail : '';
+        } catch {
+          // The API may return a platform-generated HTML error page.
+        }
+        throw new Error(detail || `AI analysis failed (${analyzeResponse.status}).`);
+      }
     } catch (e) {
       setProjectConnectionMessage(e instanceof Error ? e.message : 'Unable to connect to the GitHub service.');
     } finally {

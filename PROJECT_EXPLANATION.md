@@ -862,7 +862,7 @@ npm run build
 ### **Backend .env**
 ```env
 DATABASE_URL=postgresql://user:pass@db.supabase.co:5432/postgres
-GEMINI_API_KEY=sk-proj-...
+LLM_API_KEY=your_gemini_key_here
 CORS_ORIGINS=http://localhost:3000,https://app.VAANI.io
 Native Voice_APP_ID=Native Voice-app-id
 Native Voice_APP_CERTIFICATE=Native Voice-cert
@@ -876,6 +876,8 @@ NEXT_PUBLIC_Native Voice_APP_ID=Native Voice-app-id
 NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
+
+For deployment, set `NEXT_PUBLIC_BACKEND_URL` in the frontend build environment to the public FastAPI URL, set `CORS_ORIGINS` on the backend to the exact frontend origin, and set `LLM_API_KEY` (or `GEMINI_API_KEY`) on the backend. Redeploy the frontend after changing `NEXT_PUBLIC_BACKEND_URL`, because Next.js embeds public environment variables during the build.
 
 ### **Extension manifest.json**
 ```json

@@ -16,6 +16,21 @@ from app.ai.prompts import INCIDENT_ANALYZER_SYSTEM_PROMPT, build_analysis_promp
 from app.ai.schemas import IncidentAnalysis
 
 logger = logging.getLogger(__name__)
+MAX_ANALYSIS_CONTEXT_CHARS = 80000
+
+
+def _llm_api_key() -> str:
+    """Read the configured provider key, including the documented Gemini name."""
+    api_key = (
+        os.getenv("LLM_API_KEY")
+        or os.getenv("GEMINI_API_KEY")
+        or os.getenv("GOOGLE_API_KEY")
+    )
+    if not api_key:
+        raise ValueError(
+            "LLM_API_KEY (or GEMINI_API_KEY/GOOGLE_API_KEY) environment variable is required"
+        )
+    return api_key
 
 
 class LLMProvider(ABC):
@@ -31,9 +46,7 @@ class OpenAIProvider(LLMProvider):
     """OpenAI-compatible provider (also works with Azure, Groq, Together, etc.)."""
 
     def __init__(self):
-        api_key = os.getenv("LLM_API_KEY")
-        if not api_key:
-            raise ValueError("LLM_API_KEY environment variable is required")
+        api_key = _llm_api_key()
 
         base_url = os.getenv("LLM_API_BASE")
         self.model = os.getenv("LLM_MODEL", "gpt-4o-mini")
@@ -68,9 +81,7 @@ class GeminiProvider(LLMProvider):
     """Google Gemini provider using the native google-genai SDK for maximum speed."""
 
     def __init__(self):
-        api_key = os.getenv("LLM_API_KEY")
-        if not api_key:
-            raise ValueError("LLM_API_KEY environment variable is required")
+        api_key = _llm_api_key()
 
         self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
         
@@ -138,6 +149,13 @@ class IncidentAnalyzer:
         """
         Analyze a transcript and return structured incident intelligence.
         """
+        if project_context and len(project_context) > MAX_ANALYSIS_CONTEXT_CHARS:
+            logger.warning(
+                "Truncating stored project context from %d to %d characters",
+                len(project_context),
+                MAX_ANALYSIS_CONTEXT_CHARS,
+            )
+            project_context = project_context[:MAX_ANALYSIS_CONTEXT_CHARS]
         user_prompt = build_analysis_prompt(transcript, project_context=project_context)
 
         # Call LLM with retry on validation failure

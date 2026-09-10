@@ -56,10 +56,16 @@ app.include_router(github.router, prefix="/api/github", tags=["GitHub"])
 @app.get("/health")
 async def health_check():
     """Basic health check endpoint."""
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    api_key_configured = any(
+        os.getenv(name) for name in ("LLM_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+    )
     return {
         "status": "healthy",
         "service": "vaani-backend",
         "version": "0.1.0",
+        "ai_provider": provider,
+        "ai_api_key_configured": api_key_configured,
     }
 
 
