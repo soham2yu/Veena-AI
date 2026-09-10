@@ -24,6 +24,19 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {}
 });
 
+function getAuthError(error: unknown): Error {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = String((error as { code: unknown }).code);
+    if (code === "auth/unauthorized-domain") {
+      return new Error(
+        `This deployment domain is not authorized in Firebase. Add ${window.location.hostname} under Firebase Console > Authentication > Settings > Authorized domains.`
+      );
+    }
+  }
+
+  return error instanceof Error ? error : new Error("Authentication failed.");
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,16 +50,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      throw getAuthError(error);
+    }
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+      throw getAuthError(error);
+    }
   };
 
   const signupWithEmail = async (email: string, pass: string) => {
-    await createUserWithEmailAndPassword(auth, email, pass);
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+      throw getAuthError(error);
+    }
   };
 
   const updateUserProfile = async (displayName: string, photoURL: string) => {
