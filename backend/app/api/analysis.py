@@ -19,6 +19,26 @@ from app.services.incident_service import incident_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+PROJECT_CONTEXT_TERMS = (
+    "github",
+    "repository",
+    "repo",
+    "source code",
+    "code",
+    "file",
+    "function",
+    "bug",
+    "code error",
+    "architecture",
+    "scan",
+    "review",
+)
+
+
+def _needs_project_context(entries: list[dict]) -> bool:
+    """Only send repository source when the user is asking about it."""
+    recent_text = " ".join(entry["text"].lower() for entry in entries[-3:])
+    return any(term in recent_text for term in PROJECT_CONTEXT_TERMS)
 
 
 class TranscriptInput(BaseModel):
@@ -101,11 +121,17 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
     try:
         incident = incident_service.get_incident(request.incident_id)
         all_entries = [entry.model_dump() for entry in incident.transcript if entry.text not in ("joined the session", "left the session")]
-        transcript_dicts = all_entries[-20:]
+        transcript_dicts = all_entries[-12:]
         
         # Only analyze if we actually have meaningful history
         if transcript_dicts:
-            project_context = incident.project_context if hasattr(incident, 'project_context') else None
+            project_context = (
+                incident.project_context
+                if hasattr(incident, "project_context")
+                and incident.project_context
+                and _needs_project_context(transcript_dicts)
+                else None
+            )
             analysis = await analyzer.analyze(transcript_dicts, project_context=project_context)
             
             if analysis.vaani_action and analysis.vaani_action.speak and analysis.vaani_action.text:
