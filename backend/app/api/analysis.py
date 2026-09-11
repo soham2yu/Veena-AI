@@ -138,14 +138,17 @@ async def analyze_transcript(request: AnalyzeRequest) -> AnalyzeResponse:
                 analysis.ai_response = analysis.vaani_action.text
                 
             # Final staleness check before merging
-            if incident_service.get_turn(request.incident_id) != current_turn:
-                 logger.info("Response stale. Dropping.")
+            is_stale = incident_service.get_turn(request.incident_id) != current_turn
+            has_spoken_response = analysis.vaani_action and analysis.vaani_action.speak
+            
+            if is_stale and not has_spoken_response:
+                 logger.info("Response stale and silent. Dropping.")
                  from app.ai.schemas import IncidentAnalysis
                  return AnalyzeResponse(
                      incident_id=request.incident_id,
                      analysis=IncidentAnalysis(topics=[], decisions=[], timeline=[], risks=[], code_findings=[]),
                      transcript_length=len(incident.transcript),
-                     message="Dropped stale response"
+                     message="Dropped stale silent response"
                  )
 
             # Merge analysis into incident state
