@@ -83,24 +83,20 @@ function HomeContent() {
   // Visual audio bouncing
   const { amplitude } = useAudioAnalyzer(roomState === 'LISTENING');
   
-  // Voice Session for STT
-  const { isListening, interimText } = useVoiceSession({
-    isActive: roomState === 'LISTENING',
-    onInterimResult: () => {
-      // Barge-in: interrupt VAANI if she is speaking
-      if (audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause();
-      }
-    },
-    onSentenceComplete: async (text) => {
-      if (!activeIncidentId || !user) return;
-      
-      const entry = {
-        speaker: user.displayName || user.email?.split('@')[0] || "Operator",
-        timestamp: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-        text
-      };
+  const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const handleSentenceComplete = useCallback(async (text: string) => {
+    if (!activeIncidentId || !user || !text) return;
+
+    const entry = {
+      speaker: user.displayName || user.email?.split('@')[0] || "Operator",
+      timestamp: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      text
+    };
+
+    if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
+    
+    analyzeTimeoutRef.current = setTimeout(async () => {
       setIsThinking(true);
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/analyze`, {
@@ -116,9 +112,7 @@ function HomeContent() {
           try {
             const errorBody = await response.json();
             detail = typeof errorBody.detail === 'string' ? errorBody.detail : '';
-          } catch {
-            // The API may return a platform-generated HTML error page.
-          }
+          } catch {}
           throw new Error(detail || `AI analysis failed (${response.status}).`);
         }
       } catch (e) {
@@ -126,7 +120,19 @@ function HomeContent() {
       } finally {
         setIsThinking(false);
       }
-    }
+    }, 1500);
+  }, [activeIncidentId, user]);
+
+  // Voice Session for STT
+  const { isListening, interimText } = useVoiceSession({
+    isActive: roomState === 'LISTENING',
+    onInterimResult: () => {
+      // Barge-in: interrupt VAANI if she is speaking
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+    },
+    onSentenceComplete: handleSentenceComplete
   });
 
   // Connect to the FastAPI backend using the selected incident ID
