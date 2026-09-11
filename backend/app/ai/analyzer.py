@@ -86,7 +86,7 @@ class GeminiProvider(LLMProvider):
         self.model = os.getenv("LLM_MODEL", "gemini-3.6-flash")
         configured_fallbacks = os.getenv(
             "LLM_FALLBACK_MODELS",
-            "gemini-3.6-flash",
+            "gemini-2.5-flash,gemini-1.5-flash-latest,gemini-3.6-pro",
         )
         self.fallback_models = [
             model.strip()
@@ -101,43 +101,56 @@ class GeminiProvider(LLMProvider):
         models_to_try = [self.model, *self.fallback_models]
         from google.genai import types
         
+        import asyncio
         errors = []
         for model in models_to_try:
             logger.info("Calling Gemini natively model=%s", model)
-            try:
-                response = await self.client.aio.models.generate_content(
-                    model=model,
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        temperature=0,
-                        response_mime_type="application/json",
-                    ),
-                )
-                if model != self.model:
-                    logger.warning("Requested primary model failed; using fallback %s", model)
-                
-                content = response.text
-                if not content:
-                    raise ValueError("LLM returned empty response")
-                return json.loads(content)
-                
-            except Exception as error:
-                error_text = str(error).lower()
-                status_code = getattr(error, "code", getattr(error, "status_code", None))
-                errors.append(f"{model} failed: {status_code} - {str(error)}")
-                
-                model_unavailable = status_code in (403, 404, 500, 502, 503, 429) or (
-                    "not found" in error_text
-                    or "does not exist" in error_text
-                    or "unavailable" in error_text
-                    or "high demand" in error_text
-                    or "internal" in error_text
-                    or "quota" in error_text
-                )
-                if not model_unavailable:
-                    raise ValueError(f"Fatal error on {model}: {str(error)}")
-                logger.warning("Gemini model %s is unavailable; trying next", model)
+            
+            for attempt in range(3):
+                try:
+                    response = await self.client.aio.models.generate_content(
+                        model=model,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            temperature=0,
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    if model != self.model:
+                        logger.warning("Requested primary model failed; using fallback %s", model)
+                    
+                    content = response.text
+                    if not content:
+                        raise ValueError("LLM returned empty response")
+                    return json.loads(content)
+                    
+                except Exception as error:
+                    error_text = str(error).lower()
+                    status_code = getattr(error, "code", getattr(error, "status_code", None))
+                    
+                    is_transient = status_code in (429, 503, 502, 500) or "high demand" in error_text or "unavailable" in error_text
+                    
+                    if is_transient and attempt < 2:
+                        wait_time = (attempt + 1) * 2
+                        logger.warning(f"Transient error {status_code} on {model}. Retrying in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                        
+                    errors.append(f"{model} failed (attempt {attempt+1}): {status_code} - {str(error)}")
+                    
+                    model_unavailable = status_code in (403, 404, 500, 502, 503, 429) or (
+                        "not found" in error_text
+                        or "does not exist" in error_text
+                        or "unavailable" in error_text
+                        or "high demand" in error_text
+                        or "internal" in error_text
+                        or "quota" in error_text
+                    )
+                    if not model_unavailable:
+                        raise ValueError(f"Fatal error on {model}: {str(error)}")
+                    logger.warning("Gemini model %s is unavailable; trying next", model)
+                    break # Break retry loop, go to next model
                 
         raise ValueError(f"All models failed! Errors: {' | '.join(errors)}")
 
