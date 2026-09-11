@@ -78,7 +78,7 @@ class OpenAIProvider(LLMProvider):
 
 
 class GeminiProvider(LLMProvider):
-    """Google Gemini through its OpenAI-compatible API."""
+    """Google Gemini through native google-genai SDK for maximum stability."""
 
     def __init__(self):
         api_key = _llm_api_key()
@@ -94,27 +94,24 @@ class GeminiProvider(LLMProvider):
             if model.strip() and model.strip() != self.model
         ]
         
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=os.getenv(
-                "LLM_API_BASE",
-                "https://generativelanguage.googleapis.com/v1beta/openai/",
-            ),
-        )
+        from google import genai
+        self.client = genai.Client(api_key=api_key)
 
     async def generate_json(self, system_prompt: str, user_prompt: str) -> dict:
         models_to_try = [self.model, *self.fallback_models]
+        from google.genai import types
+        
         for model in models_to_try:
-            logger.info("Calling Gemini model=%s", model)
+            logger.info("Calling Gemini natively model=%s", model)
             try:
-                response = await self.client.chat.completions.create(
+                response = await self.client.aio.models.generate_content(
                     model=model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=0,
+                        response_mime_type="application/json",
+                    ),
                 )
                 if model != self.model:
                     logger.warning(
@@ -122,27 +119,26 @@ class GeminiProvider(LLMProvider):
                         self.model,
                         model,
                     )
-                break
+                
+                content = response.text
+                if not content:
+                    raise ValueError("LLM returned empty response")
+                return json.loads(content)
+                
             except Exception as error:
                 error_text = str(error).lower()
-                status_code = getattr(error, "status_code", None)
+                status_code = getattr(error, "code", getattr(error, "status_code", None))
                 model_unavailable = status_code in (403, 404, 500, 502, 503, 429) or (
-                    "not_found" in error_text
-                    or "model not found" in error_text
+                    "not found" in error_text
                     or "does not exist" in error_text
                     or "unavailable" in error_text
                     or "high demand" in error_text
-                    or "internal error" in error_text
+                    or "internal" in error_text
+                    or "quota" in error_text
                 )
                 if not model_unavailable or model == models_to_try[-1]:
                     raise
                 logger.warning("Gemini model %s is unavailable; trying fallback", model)
-
-        content = response.choices[0].message.content
-        if not content:
-            raise ValueError("LLM returned empty response")
-
-        return json.loads(content)
 
 
 def _create_provider() -> LLMProvider:
