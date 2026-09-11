@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, Suspense } from 'react';
+import React, { useState, useRef, useEffect, Suspense, useCallback } from 'react';
 import { useAudioAnalyzer } from '@/hooks/useAudioAnalyzer';
 import { useAIEvents } from '@/hooks/useAIEvents';
 import { useVoiceSession } from '@/hooks/useVoiceSession';
