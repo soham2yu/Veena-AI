@@ -83,10 +83,10 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         api_key = _llm_api_key()
 
-        self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+        self.model = os.getenv("LLM_MODEL", "gemini-3.6-flash")
         configured_fallbacks = os.getenv(
             "LLM_FALLBACK_MODELS",
-            "gemini-1.5-flash,gemini-1.5-flash-8b",
+            "gemini-3.6-flash",
         )
         self.fallback_models = [
             model.strip()
