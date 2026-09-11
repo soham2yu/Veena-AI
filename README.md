@@ -28,12 +28,14 @@ If VAANI is speaking, or waiting on a slow tool call (like `FACT_CHECK`), and a 
 3. `pnpm run dev`
 
 ## Hackathon Required Disclosures
-* **Architecture & Transport**: Next.js frontend capturing audio via Web Speech API (Native browser). Audio is sent via REST to a FastAPI backend. Backend returns TTS via streaming HTTP response to an HTML5 Audio object.
+* **Architecture & Transport**: Next.js frontend capturing audio via Web Speech API (Native browser). Audio transcript is sent via WebSocket or REST to a FastAPI backend. Backend returns TTS via streaming HTTP response to an HTML5 Audio object.
+* **Third-Party Services**: GitHub API (for context ingestion), Supabase/PostgreSQL (for incident state persistence), Google Gemini API (for LLM analysis), Rime Labs API (for TTS generation).
 * **Rime Configuration**: 
-  * **Model ID**: `mist`
-  * **Speaker**: `abbie` (default)
+  * **Model ID**: `mistv3`
+  * **Speaker**: `luna` (default)
   * **Language**: English
-  * **Endpoint**: \https://users.rime.ai/v1/rime-tts\
-  * **Audio Format**: \ udio/mp3\ (consumed as \ udio/mpeg\)
-* **Known Limitations**: Web Speech API is dependent on Chrome/Safari native implementations and can struggle in extreme background noise compared to dedicated telephony endpoints.
-* **Failure Behavior**: If the LLM or Rime TTS fails, the backend safely catches the error and logs it, while the frontend UI remains active and listening. The agent gracefully falls back to a \STAY_SILENT\ state so the war room is not blocked by a crashed agent.
+  * **Endpoint**: `https://users.rime.ai/v1/rime-tts`
+  * **Audio Format**: `audio/mp3` (consumed as `audio/mpeg`)
+  * **Transport**: HTTP POST via `httpx.AsyncClient` from backend to Rime, streamed back to frontend HTML5 Audio.
+* **Known Limitations**: Web Speech API is dependent on Chrome/Safari native implementations and can struggle in extreme background noise compared to dedicated telephony endpoints. The LLM can sometimes hallucinate actions if the transcript is ambiguous.
+* **Failure Behavior**: If the LLM or Rime TTS fails, the backend safely catches the error and logs it (returning 502/500), while the frontend UI remains active and listening. The agent gracefully falls back to a `STAY_SILENT` state so the war room is not blocked by a crashed agent. If the DB fails to connect, the system falls back to in-memory state management.
