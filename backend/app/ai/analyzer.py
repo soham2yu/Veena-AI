@@ -153,16 +153,21 @@ class GeminiProvider(LLMProvider):
                     break # Break retry loop, go to next model
                 
         if any("429" in e or "quota" in e.lower() or "resource exhausted" in e.lower() for e in errors):
-            logger.warning("Quota exhausted! Gracefully failing to STAY_SILENT mode.")
+            logger.warning("Quota exhausted! Informing the user via voice.")
             return {
                 "topics": [],
                 "decisions": [],
                 "timeline": [],
                 "risks": [],
                 "code_findings": [],
-                "ai_response": None,
-                "room_vibe": "Focused",
-                "vaani_action": {"action": "STAY_SILENT", "speak": False, "text": "", "topic": ""}
+                "ai_response": "I am currently hitting the Google API rate limit. Please wait 30 seconds before asking me again.",
+                "room_vibe": "Stressed",
+                "vaani_action": {
+                    "action": "ANSWER", 
+                    "speak": True, 
+                    "text": "I am currently hitting the Google API rate limit. Please wait 30 seconds before asking me again.", 
+                    "topic": "System Health"
+                }
             }
 
         raise ValueError(f"All models failed! Errors: {' | '.join(errors)}")
