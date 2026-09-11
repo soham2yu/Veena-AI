@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-MAX_PROJECT_CONTEXT_CHARS = 80000
-MAX_FILE_CONTEXT_CHARS = 8000
+MAX_PROJECT_CONTEXT_CHARS = 20000
+MAX_FILE_CONTEXT_CHARS = 3000
 
 class ConnectRepoRequest(BaseModel):
     repo_url: str
@@ -104,7 +104,7 @@ async def connect_repo(request: ConnectRepoRequest):
         ))
         
         for path in code_paths:
-            if len(key_files) >= 35:
+            if len(key_files) >= 15:
                 break
             if path not in key_files:
                 key_files.append(path)

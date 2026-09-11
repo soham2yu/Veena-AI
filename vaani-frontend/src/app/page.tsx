@@ -96,6 +96,11 @@ function HomeContent() {
 
     if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
     
+    // Smart trigger: if the user explicitly says "vaani", trigger faster.
+    // Otherwise, wait a massive 5 seconds to batch sentences and protect the strict 15 RPM quota.
+    const isExplicitSummon = text.toLowerCase().includes("vaani") || text.toLowerCase().includes("vani");
+    const debounceTime = isExplicitSummon ? 1000 : 5000;
+    
     analyzeTimeoutRef.current = setTimeout(async () => {
       setIsThinking(true);
       try {
@@ -120,7 +125,7 @@ function HomeContent() {
       } finally {
         setIsThinking(false);
       }
-    }, 1500);
+    }, debounceTime);
   }, [activeIncidentId, user]);
 
   // Voice Session for STT
