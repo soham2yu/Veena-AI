@@ -152,6 +152,19 @@ class GeminiProvider(LLMProvider):
                     logger.warning("Gemini model %s is unavailable; trying next", model)
                     break # Break retry loop, go to next model
                 
+        if any("429" in e or "quota" in e.lower() or "resource exhausted" in e.lower() for e in errors):
+            logger.warning("Quota exhausted! Gracefully failing to STAY_SILENT mode.")
+            return {
+                "topics": [],
+                "decisions": [],
+                "timeline": [],
+                "risks": [],
+                "code_findings": [],
+                "ai_response": None,
+                "room_vibe": "Focused",
+                "vaani_action": {"action": "STAY_SILENT", "speak": False, "text": "", "topic": ""}
+            }
+
         raise ValueError(f"All models failed! Errors: {' | '.join(errors)}")
 
 
