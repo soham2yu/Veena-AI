@@ -83,10 +83,10 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         api_key = _llm_api_key()
 
-        self.model = os.getenv("LLM_MODEL", "gemini-3.5-flash-lite")
+        self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
         configured_fallbacks = os.getenv(
             "LLM_FALLBACK_MODELS",
-            "gemini-2.5-flash-lite,gemini-2.0-flash",
+            "gemini-1.5-flash,gemini-1.5-pro",
         )
         self.fallback_models = [
             model.strip()
@@ -126,10 +126,13 @@ class GeminiProvider(LLMProvider):
             except Exception as error:
                 error_text = str(error).lower()
                 status_code = getattr(error, "status_code", None)
-                model_unavailable = status_code == 404 or (
+                model_unavailable = status_code in (404, 500, 502, 503, 429) or (
                     "not_found" in error_text
                     or "model not found" in error_text
                     or "does not exist" in error_text
+                    or "unavailable" in error_text
+                    or "high demand" in error_text
+                    or "internal error" in error_text
                 )
                 if not model_unavailable or model == models_to_try[-1]:
                     raise
