@@ -101,6 +101,7 @@ class GeminiProvider(LLMProvider):
         models_to_try = [self.model, *self.fallback_models]
         from google.genai import types
         
+        errors = []
         for model in models_to_try:
             logger.info("Calling Gemini natively model=%s", model)
             try:
@@ -114,11 +115,7 @@ class GeminiProvider(LLMProvider):
                     ),
                 )
                 if model != self.model:
-                    logger.warning(
-                        "Requested Gemini model %s was unavailable; using fallback %s",
-                        self.model,
-                        model,
-                    )
+                    logger.warning("Requested primary model failed; using fallback %s", model)
                 
                 content = response.text
                 if not content:
@@ -128,6 +125,8 @@ class GeminiProvider(LLMProvider):
             except Exception as error:
                 error_text = str(error).lower()
                 status_code = getattr(error, "code", getattr(error, "status_code", None))
+                errors.append(f"{model} failed: {status_code} - {str(error)}")
+                
                 model_unavailable = status_code in (403, 404, 500, 502, 503, 429) or (
                     "not found" in error_text
                     or "does not exist" in error_text
@@ -136,9 +135,11 @@ class GeminiProvider(LLMProvider):
                     or "internal" in error_text
                     or "quota" in error_text
                 )
-                if not model_unavailable or model == models_to_try[-1]:
-                    raise
-                logger.warning("Gemini model %s is unavailable; trying fallback", model)
+                if not model_unavailable:
+                    raise ValueError(f"Fatal error on {model}: {str(error)}")
+                logger.warning("Gemini model %s is unavailable; trying next", model)
+                
+        raise ValueError(f"All models failed! Errors: {' | '.join(errors)}")
 
 
 def _create_provider() -> LLMProvider:
