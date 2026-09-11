@@ -113,7 +113,9 @@ class GeminiProvider(LLMProvider):
         for model in models_to_try:
             logger.info("Calling Gemini natively model=%s with key index %d", model, self.current_key_idx)
             
-            for attempt in range(2):
+            # Allow enough attempts to cycle through all available API keys
+            max_attempts = len(self.api_keys)
+            for attempt in range(max_attempts):
                 try:
                     client = self._get_client()
                     response = await client.aio.models.generate_content(
@@ -143,12 +145,12 @@ class GeminiProvider(LLMProvider):
                             logger.warning(f"Key {self.current_key_idx} exhausted. Rotating...")
                             self._rotate_key()
                             # If we rotated, try the same model again with the new key immediately
-                            if attempt < 1:
+                            if attempt < max_attempts - 1:
                                 continue
                                 
                     is_transient = status_code in (503, 502, 500) or "high demand" in error_text or "unavailable" in error_text
                     
-                    if is_transient and attempt < 1:
+                    if is_transient and attempt < max_attempts - 1:
                         wait_time = 2
                         logger.warning(f"Transient error {status_code} on {model}. Retrying in {wait_time}s...")
                         await asyncio.sleep(wait_time)
