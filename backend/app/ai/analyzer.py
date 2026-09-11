@@ -86,7 +86,7 @@ class GeminiProvider(LLMProvider):
         self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
         configured_fallbacks = os.getenv(
             "LLM_FALLBACK_MODELS",
-            "gemini-1.5-flash,gemini-1.5-pro",
+            "gemini-1.5-flash,gemini-1.5-flash-8b",
         )
         self.fallback_models = [
             model.strip()
@@ -126,7 +126,7 @@ class GeminiProvider(LLMProvider):
             except Exception as error:
                 error_text = str(error).lower()
                 status_code = getattr(error, "status_code", None)
-                model_unavailable = status_code in (404, 500, 502, 503, 429) or (
+                model_unavailable = status_code in (403, 404, 500, 502, 503, 429) or (
                     "not_found" in error_text
                     or "model not found" in error_text
                     or "does not exist" in error_text
