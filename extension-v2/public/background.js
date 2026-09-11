@@ -1,7 +1,8 @@
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "SEND_TRANSCRIPT") {
-    fetch("http://localhost:8000/api/analyze", {
+    // Point directly to the production Render backend
+    fetch("https://veena-ai-rvbh.onrender.com/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request.payload)
