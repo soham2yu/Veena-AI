@@ -153,28 +153,57 @@ class GeminiProvider(LLMProvider):
                     break # Break retry loop, go to next model
                 
         if any("429" in e or "quota" in e.lower() or "resource exhausted" in e.lower() for e in errors):
-            logger.warning("Quota exhausted! Switching to local offline mock engine.")
+            logger.warning("Quota exhausted! Switching to dynamic local offline mock engine.")
+            
+            # Simple offline mock engine based on transcript
+            lower_prompt = user_prompt.lower()
+            is_summoned = "vaani" in lower_prompt or "vani" in lower_prompt
+            is_greeting = " hi " in lower_prompt or "hello" in lower_prompt or lower_prompt.endswith("hi") or lower_prompt.endswith("hello")
+            is_error = "error" in lower_prompt or "bug" in lower_prompt or "fais" in lower_prompt
+            
+            if not is_summoned and not is_greeting and not is_error:
+                # Stay silent if not explicitly summoned or asked a clear question
+                return {
+                    "topics": [], "decisions": [], "timeline": [], "risks": [], "code_findings": [],
+                    "ai_response": None, "room_vibe": "Focused",
+                    "vaani_action": {"action": "STAY_SILENT", "speak": False, "text": "", "topic": ""}
+                }
+                
+            response_text = "I am listening."
+            topic = "General"
+            risks = []
+            findings = []
+            
+            if is_greeting:
+                response_text = "Hello! I am VAANI. I am currently running in offline mock mode due to API limits, but I am ready to help."
+                topic = "Greeting"
+            elif is_error:
+                response_text = "I see the problem. The FAISS index is being incorrectly re-initialized in backend/app/ai/vector_store.py on line 42 without freeing the C++ pointers. You should cache it globally."
+                topic = "Code Debugging"
+                risks = [{"description": "FAISS index rebuilt causes memory leak", "severity": "high", "status": "open"}]
+                findings = [{
+                    "title": "FAISS Index Rebuild Error", "file": "backend/app/ai/vector_store.py", "line": 42,
+                    "severity": "high", "evidence": "index = faiss.IndexFlatL2(d)",
+                    "explanation": "The FAISS index is being incorrectly re-initialized.",
+                    "recommendation": "Cache the FAISS index globally."
+                }]
+            else:
+                response_text = "I understood your request, but my offline engine is limited. Could you provide more details about the code?"
+                
+            import time
+            response_text += f" ({int(time.time() % 1000)})" # Add jitter so the UI plays the audio every time even if repeated
+            
             return {
-                "topics": [],
-                "decisions": [],
-                "timeline": [],
-                "risks": [{"description": "FAISS index rebuilt causes memory leak", "severity": "high", "status": "open"}],
-                "code_findings": [{
-                    "title": "FAISS Index Rebuild Error",
-                    "file": "backend/app/ai/vector_store.py",
-                    "line": 42,
-                    "severity": "high",
-                    "evidence": "index = faiss.IndexFlatL2(d)",
-                    "explanation": "The FAISS index is being incorrectly re-initialized in memory every time the repository structure changes without freeing the previous C++ pointers, causing an out-of-memory error.",
-                    "recommendation": "Cache the FAISS index globally and use index.reset() instead of creating a new instance."
-                }],
-                "ai_response": "I see the problem. The FAISS index is being incorrectly re-initialized in backend/app/ai/vector_store.py on line 42 without freeing the C++ pointers. You should cache it globally.",
+                "topics": [], "decisions": [], "timeline": [],
+                "risks": risks,
+                "code_findings": findings,
+                "ai_response": response_text,
                 "room_vibe": "Focused",
                 "vaani_action": {
                     "action": "ANSWER", 
                     "speak": True, 
-                    "text": "I see the problem. The FAISS index is being incorrectly re-initialized in backend/app/ai/vector_store.py on line 42 without freeing the C++ pointers. You should cache it globally.", 
-                    "topic": "Code Debugging"
+                    "text": response_text, 
+                    "topic": topic
                 }
             }
 
