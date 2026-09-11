@@ -85,7 +85,7 @@ async def connect_repo(request: ConnectRepoRequest):
         
         # Identify key files
         key_files = []
-        prioritized_files = ["README.md", "package.json", "requirements.txt", "Dockerfile"]
+        prioritized_files = ["README.md", "package.json", "requirements.txt", "Dockerfile", "docker-compose.yml", "tsconfig.json"]
         
         for path in tree_paths:
             if path in prioritized_files:
@@ -96,18 +96,18 @@ async def connect_repo(request: ConnectRepoRequest):
             if path.endswith((".py", ".ts", ".tsx", ".js", ".jsx", ".java", ".go", ".rs", ".rb"))
             and not any(part in {"node_modules", ".next", "dist", "build", "__pycache__"} for part in path.split("/"))
         ]
+        
         code_paths.sort(key=lambda path: (
             0 if path.startswith(("backend/", "src/", "app/")) else 1,
             path.count("/"),
             path,
         ))
+        
         for path in code_paths:
-            if len(key_files) >= 15:
+            if len(key_files) >= 35:
                 break
             if path not in key_files:
                 key_files.append(path)
-                        
-        key_files = key_files[:15]
         
         context_parts.append("\n--- KEY FILES CONTENT ---")
         
